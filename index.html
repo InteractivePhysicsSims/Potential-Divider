@@ -1,0 +1,979 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Potential Divider Physics Simulation</title>
+    <!-- Tailwind CSS for modern responsive UI styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Fira+Code:wght@400;500;600&display=swap');
+        
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #0f172a;
+            color: #f8fafc;
+        }
+
+        .code-font {
+            font-family: 'Fira Code', monospace;
+        }
+
+        /* Custom Scrollbar for side panel */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #1e293b;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #475569;
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #64748b;
+        }
+
+        /* Custom Range Slider */
+        input[type="range"] {
+            -webkit-appearance: none;
+            appearance: none;
+            height: 6px;
+            border-radius: 4px;
+            background: #334155;
+            outline: none;
+        }
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            background: #38bdf8;
+            cursor: pointer;
+            box-shadow: 0 0 10px rgba(56, 189, 248, 0.5);
+            transition: transform 0.1s ease, background 0.1s ease;
+        }
+        input[type="range"]::-webkit-slider-thumb:hover {
+            transform: scale(1.15);
+            background: #7dd3fc;
+        }
+
+        /* Prevent numeric input spinner arrows for a clean look */
+        input[type=number]::-webkit-inner-spin-button, 
+        input[type=number]::-webkit-outer-spin-button { 
+            -webkit-appearance: none;
+            margin: 0;
+        }
+        input[type=number] {
+            -moz-appearance: textfield;
+        }
+    </style>
+</head>
+<body class="h-screen w-screen overflow-hidden flex flex-col justify-between">
+
+    <!-- Header Navigation -->
+    <header class="bg-slate-900/90 border-b border-slate-800 px-6 py-3 flex justify-between items-center z-10 backdrop-blur-md">
+        <div class="flex items-center space-x-3">
+            <div class="bg-sky-500/10 p-2 rounded-lg border border-sky-500/20">
+                <i data-lucide="zap" class="w-6 h-6 text-sky-400"></i>
+            </div>
+            <div>
+                <h1 class="font-bold text-lg tracking-wide text-slate-100 flex items-center gap-2">
+                    Potential Divider Lab
+                    <span class="text-xs font-semibold px-2 py-0.5 rounded bg-sky-500/20 text-sky-300 border border-sky-500/30">CAIE Physics</span>
+                </h1>
+                <p class="text-xs text-slate-400">Series circuit voltage distribution & sensor dynamics</p>
+            </div>
+        </div>
+
+        <!-- Preset Configurations Dropdown -->
+        <div class="flex items-center space-x-4">
+            <div class="flex items-center gap-2 bg-slate-800/80 px-3 py-1.5 rounded-lg border border-slate-700">
+                <i data-lucide="sliders" class="w-4 h-4 text-sky-400"></i>
+                <label for="presetSelect" class="text-xs font-medium text-slate-300 hidden sm:inline">Preset:</label>
+                <select id="presetSelect" class="bg-transparent text-xs font-semibold text-sky-400 focus:outline-none cursor-pointer pr-2">
+                    <option value="equal" class="bg-slate-800 text-slate-200">Equal Split (R1 = R2)</option>
+                    <option value="high_vout" class="bg-slate-800 text-slate-200">High V_out (R2 &gt;&gt; R1)</option>
+                    <option value="low_vout" class="bg-slate-800 text-slate-200">Low V_out (R2 &lt;&lt; R1)</option>
+                    <option value="ldr_light" class="bg-slate-800 text-slate-200">LDR Light Sensing</option>
+                    <option value="thermistor_temp" class="bg-slate-800 text-slate-200">Thermistor Temp Sensing</option>
+                </select>
+            </div>
+
+            <!-- Controls Reset -->
+            <button id="resetBtn" class="bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white px-3 py-1.5 rounded-lg border border-slate-700 text-xs flex items-center gap-1.5 transition">
+                <i data-lucide="rotate-ccw" class="w-3.5 h-3.5"></i> Reset
+            </button>
+        </div>
+    </header>
+
+    <!-- Main Workspace -->
+    <main class="flex-1 flex flex-col lg:flex-row overflow-hidden relative">
+
+        <!-- Visual Interactive Canvas Area (Left Side) -->
+        <div class="flex-1 relative bg-slate-950 flex items-center justify-center p-4 overflow-hidden">
+            <!-- Canvas for Circuit & Electrons Animation -->
+            <canvas id="circuitCanvas" class="w-full h-full block cursor-crosshair"></canvas>
+
+            <!-- Floating Overlay Control Panel (Bottom Left of Canvas) -->
+            <div class="absolute bottom-4 left-4 bg-slate-900/85 backdrop-blur-md p-3 rounded-xl border border-slate-800 text-xs space-y-2 max-w-xs shadow-2xl">
+                <div class="flex items-center justify-between gap-4">
+                    <span class="text-slate-400 flex items-center gap-1.5">
+                        <i data-lucide="play" class="w-3.5 h-3.5 text-emerald-400"></i>
+                        Charge Flow (Electrons)
+                    </span>
+                    <label class="relative inline-flex items-center cursor-pointer">
+                        <input type="checkbox" id="animToggle" class="sr-only peer" checked>
+                        <div class="w-8 h-4 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-emerald-500"></div>
+                    </label>
+                </div>
+                <div class="flex items-center justify-between gap-4">
+                    <span class="text-slate-400 flex items-center gap-1.5">
+                        <i data-lucide="eye" class="w-3.5 h-3.5 text-sky-400"></i>
+                        Show Value Labels
+                    </span>
+                    <label class="relative inline-flex items-center cursor-pointer">
+                        <input type="checkbox" id="labelsToggle" class="sr-only peer" checked>
+                        <div class="w-8 h-4 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-sky-500"></div>
+                    </label>
+                </div>
+            </div>
+
+            <!-- On-Canvas Voltmeter Badge Legend -->
+            <div class="absolute top-4 left-4 bg-slate-900/80 backdrop-blur border border-slate-800 p-3 rounded-xl flex items-center gap-3">
+                <div class="w-3 h-3 rounded-full bg-amber-400 animate-pulse"></div>
+                <div>
+                    <div class="text-xs font-semibold text-slate-200">Live Voltmeter Node</div>
+                    <div class="text-[10px] text-slate-400">Measuring across R₂ (V<sub>out</sub>)</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Controls & Math Panel (Right Side) -->
+        <aside class="w-full lg:w-[440px] bg-slate-900 border-t lg:border-t-0 lg:border-l border-slate-800 flex flex-col overflow-y-auto">
+            
+            <!-- Section 1: Component & Voltage Controls -->
+            <div class="p-5 border-b border-slate-800 space-y-4">
+                <h2 class="text-sm font-bold uppercase tracking-wider text-slate-400 flex items-center gap-2">
+                    <i data-lucide="settings" class="w-4 h-4 text-sky-400"></i> Circuit Parameters
+                </h2>
+
+                <!-- Supply Voltage (Vin) Input Slider & Number Input -->
+                <div class="space-y-1.5">
+                    <div class="flex justify-between items-center text-xs">
+                        <span class="font-medium text-slate-300">Supply Voltage (V<sub>in</sub>)</span>
+                        <div class="flex items-center gap-1">
+                            <input type="number" id="vinInput" min="0" max="24" step="0.1" value="12.0" class="code-font font-bold text-amber-400 bg-slate-950 border border-slate-700 rounded px-1.5 py-0.5 w-16 text-right focus:outline-none focus:border-amber-400 text-xs">
+                            <span class="text-amber-400 font-bold text-xs">V</span>
+                        </div>
+                    </div>
+                    <input type="range" id="vinSlider" min="0" max="24" step="0.5" value="12" class="w-full">
+                    <div class="flex justify-between text-[10px] text-slate-500">
+                        <span>0 V</span>
+                        <span>12 V</span>
+                        <span>24 V</span>
+                    </div>
+                </div>
+
+                <!-- Resistor 1 (R1) Section -->
+                <div class="space-y-2 p-3 bg-slate-950/50 rounded-xl border border-slate-800">
+                    <div class="flex justify-between items-center">
+                        <div class="flex items-center gap-2">
+                            <span class="text-xs font-bold text-sky-400">R<sub>1</sub> Component</span>
+                        </div>
+                        <select id="r1Type" class="bg-slate-800 text-xs text-slate-200 rounded px-2 py-0.5 border border-slate-700 focus:outline-none">
+                            <option value="standard">Fixed Resistor</option>
+                            <option value="ldr">LDR (Light Sensitive)</option>
+                            <option value="ntc">Thermistor (NTC)</option>
+                        </select>
+                    </div>
+
+                    <!-- Standard Resistance Control -->
+                    <div id="r1StandardBox" class="space-y-1">
+                        <div class="flex justify-between items-center text-xs">
+                            <span class="text-slate-400">Resistance (R<sub>1</sub>)</span>
+                            <div class="flex items-center gap-1">
+                                <input type="number" id="r1Input" min="0.1" max="20" step="0.1" value="5.00" class="code-font font-semibold text-sky-300 bg-slate-950 border border-slate-700 rounded px-1.5 py-0.5 w-20 text-right focus:outline-none focus:border-sky-400 text-xs">
+                                <span class="text-sky-300 font-semibold text-xs">kΩ</span>
+                            </div>
+                        </div>
+                        <input type="range" id="r1Slider" min="100" max="10000" step="100" value="5000" class="w-full">
+                    </div>
+
+                    <!-- Environmental Sensor Control for R1 (if active) -->
+                    <div id="r1SensorBox" class="hidden space-y-1.5 pt-1 border-t border-slate-800/80">
+                        <div class="flex justify-between text-xs">
+                            <span id="r1SensorLabel" class="text-slate-400">Light Intensity</span>
+                            <span class="code-font font-semibold text-amber-300" id="r1SensorVal">50 %</span>
+                        </div>
+                        <input type="range" id="r1SensorSlider" min="0" max="100" step="1" value="50" class="w-full">
+                    </div>
+                </div>
+
+                <!-- Resistor 2 (R2) Section -->
+                <div class="space-y-2 p-3 bg-slate-950/50 rounded-xl border border-slate-800">
+                    <div class="flex justify-between items-center">
+                        <div class="flex items-center gap-2">
+                            <span class="text-xs font-bold text-emerald-400">R<sub>2</sub> Component (Output)</span>
+                        </div>
+                        <select id="r2Type" class="bg-slate-800 text-xs text-slate-200 rounded px-2 py-0.5 border border-slate-700 focus:outline-none">
+                            <option value="standard">Fixed Resistor</option>
+                            <option value="ldr">LDR (Light Sensitive)</option>
+                            <option value="ntc">Thermistor (NTC)</option>
+                        </select>
+                    </div>
+
+                    <!-- Standard Resistance Control -->
+                    <div id="r2StandardBox" class="space-y-1">
+                        <div class="flex justify-between items-center text-xs">
+                            <span class="text-slate-400">Resistance (R<sub>2</sub>)</span>
+                            <div class="flex items-center gap-1">
+                                <input type="number" id="r2Input" min="0.1" max="20" step="0.1" value="5.00" class="code-font font-semibold text-emerald-300 bg-slate-950 border border-slate-700 rounded px-1.5 py-0.5 w-20 text-right focus:outline-none focus:border-emerald-400 text-xs">
+                                <span class="text-emerald-300 font-semibold text-xs">kΩ</span>
+                            </div>
+                        </div>
+                        <input type="range" id="r2Slider" min="100" max="10000" step="100" value="5000" class="w-full">
+                    </div>
+
+                    <!-- Environmental Sensor Control for R2 (if active) -->
+                    <div id="r2SensorBox" class="hidden space-y-1.5 pt-1 border-t border-slate-800/80">
+                        <div class="flex justify-between text-xs">
+                            <span id="r2SensorLabel" class="text-slate-400">Light Intensity</span>
+                            <span class="code-font font-semibold text-amber-300" id="r2SensorVal">50 %</span>
+                        </div>
+                        <input type="range" id="r2SensorSlider" min="0" max="100" step="1" value="50" class="w-full">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Section 2: Real-time Math & Formula Breakdowns -->
+            <div class="p-5 border-b border-slate-800 space-y-3 bg-slate-950/30">
+                <h2 class="text-sm font-bold uppercase tracking-wider text-slate-400 flex items-center gap-2">
+                    <i data-lucide="calculator" class="w-4 h-4 text-emerald-400"></i> CAIE Physics Calculations
+                </h2>
+
+                <!-- Core Formula Display -->
+                <div class="bg-slate-950 p-3.5 rounded-xl border border-slate-800 space-y-2">
+                    <div class="text-[11px] text-slate-400 font-medium">Potential Divider Equation:</div>
+                    <div class="code-font text-center py-1 text-xs text-amber-300 bg-slate-900/80 rounded border border-slate-800">
+                        V<sub>out</sub> = V<sub>in</sub> × ( R<sub>2</sub> / (R<sub>1</sub> + R<sub>2</sub>) )
+                    </div>
+                    
+                    <!-- Live Value Substitution -->
+                    <div class="text-xs space-y-1 pt-1 text-slate-300">
+                        <div class="flex justify-between items-center text-[11px]">
+                            <span class="text-slate-400">Substituted Values:</span>
+                        </div>
+                        <div class="code-font text-xs text-sky-300 bg-slate-900/40 p-2 rounded text-center overflow-x-auto">
+                            V<sub>out</sub> = <span id="calcVin">12.0</span> × ( <span id="calcR2">5.00k</span> / (<span id="calcR1">5.00k</span> + <span id="calcR2Denom">5.00k</span>) )
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Readout Cards Grid -->
+                <div class="grid grid-cols-2 gap-2.5 pt-1">
+                    <div class="bg-slate-950 p-3 rounded-xl border border-slate-800">
+                        <div class="text-[10px] text-slate-400 font-medium uppercase">Output Voltage (V<sub>out</sub>)</div>
+                        <div class="code-font text-lg font-bold text-amber-400 mt-0.5" id="voutReadout">6.00 V</div>
+                        <div class="text-[10px] text-slate-500" id="voutPercent">50.0% of V_in</div>
+                    </div>
+
+                    <div class="bg-slate-950 p-3 rounded-xl border border-slate-800">
+                        <div class="text-[10px] text-slate-400 font-medium uppercase">Circuit Current (I)</div>
+                        <div class="code-font text-lg font-bold text-emerald-400 mt-0.5" id="currentReadout">1.20 mA</div>
+                        <div class="text-[10px] text-slate-500" id="totalRReadout">R_total = 10.0 kΩ</div>
+                    </div>
+
+                    <div class="bg-slate-950 p-3 rounded-xl border border-slate-800">
+                        <div class="text-[10px] text-slate-400 font-medium uppercase">Voltage Across R<sub>1</sub></div>
+                        <div class="code-font text-base font-semibold text-sky-400 mt-0.5" id="vr1Readout">6.00 V</div>
+                    </div>
+
+                    <div class="bg-slate-950 p-3 rounded-xl border border-slate-800">
+                        <div class="text-[10px] text-slate-400 font-medium uppercase">Total Dissipated Power</div>
+                        <div class="code-font text-base font-semibold text-purple-400 mt-0.5" id="powerReadout">14.4 mW</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Section 3: Visual Real-time Dynamic Voltage Split Bar -->
+            <div class="p-5 space-y-3">
+                <h2 class="text-sm font-bold uppercase tracking-wider text-slate-400 flex items-center gap-2">
+                    <i data-lucide="bar-chart-3" class="w-4 h-4 text-purple-400"></i> Potential Distribution
+                </h2>
+
+                <div class="space-y-2">
+                    <div class="flex justify-between text-xs font-medium">
+                        <span class="text-sky-400">V<sub>R1</sub> (<span id="vr1BarVal">6.0V</span>)</span>
+                        <span class="text-emerald-400">V<sub>R2</sub> = V<sub>out</sub> (<span id="vr2BarVal">6.0V</span>)</span>
+                    </div>
+
+                    <!-- Proportion Bar -->
+                    <div class="h-6 w-full bg-slate-950 rounded-lg overflow-hidden border border-slate-800 flex p-0.5">
+                        <div id="barVr1" class="h-full bg-gradient-to-r from-sky-600 to-sky-400 rounded-l transition-all duration-150 flex items-center justify-center text-[10px] font-bold text-white overflow-hidden" style="width: 50%;">
+                            R1
+                        </div>
+                        <div id="barVr2" class="h-full bg-gradient-to-r from-emerald-500 to-amber-400 rounded-r transition-all duration-150 flex items-center justify-center text-[10px] font-bold text-slate-950 overflow-hidden" style="width: 50%;">
+                            R2
+                        </div>
+                    </div>
+                    <div class="flex justify-between text-[10px] text-slate-500">
+                        <span>0V (0%)</span>
+                        <span id="midVoltageMark">6.0V</span>
+                        <span id="maxVoltageMark">12.0V (100%)</span>
+                    </div>
+                </div>
+            </div>
+
+        </aside>
+    </main>
+
+    <!-- Interactive Simulation Logic Engine -->
+    <script>
+        // Initialize Lucide Icons
+        lucide.createIcons();
+
+        // Canvas Setup
+        const canvas = document.getElementById('circuitCanvas');
+        const ctx = canvas.getContext('2d');
+
+        // Circuit State Data Model
+        const state = {
+            vin: 12.0,            // Volts
+            r1Type: 'standard',   // 'standard', 'ldr', 'ntc'
+            r1Value: 5000,        // Ohms
+            r1Sensor: 50,         // Percentage (Lux or Temp)
+            r2Type: 'standard',   // 'standard', 'ldr', 'ntc'
+            r2Value: 5000,        // Ohms
+            r2Sensor: 50,         // Percentage (Lux or Temp)
+            showAnimation: true,
+            showLabels: true
+        };
+
+        // Electron animation offset tracker
+        let electronOffset = 0;
+        let lastTime = performance.now();
+
+        // Resistor physical minimum/maximum bounds for sensor simulation (in Ohms)
+        const SENSOR_MIN_R = 200;    // High light or high temperature -> low resistance
+        const SENSOR_MAX_R = 10000;  // Dark or low temperature -> high resistance
+
+        // Elements Cache
+        const vinSlider = document.getElementById('vinSlider');
+        const vinInput = document.getElementById('vinInput');
+        
+        const r1TypeSelect = document.getElementById('r1Type');
+        const r1Slider = document.getElementById('r1Slider');
+        const r1Input = document.getElementById('r1Input');
+        const r1StandardBox = document.getElementById('r1StandardBox');
+        const r1SensorBox = document.getElementById('r1SensorBox');
+        const r1SensorSlider = document.getElementById('r1SensorSlider');
+        const r1SensorLabel = document.getElementById('r1SensorLabel');
+        const r1SensorVal = document.getElementById('r1SensorVal');
+
+        const r2TypeSelect = document.getElementById('r2Type');
+        const r2Slider = document.getElementById('r2Slider');
+        const r2Input = document.getElementById('r2Input');
+        const r2StandardBox = document.getElementById('r2StandardBox');
+        const r2SensorBox = document.getElementById('r2SensorBox');
+        const r2SensorSlider = document.getElementById('r2SensorSlider');
+        const r2SensorLabel = document.getElementById('r2SensorLabel');
+        const r2SensorVal = document.getElementById('r2SensorVal');
+
+        const presetSelect = document.getElementById('presetSelect');
+        const resetBtn = document.getElementById('resetBtn');
+        const animToggle = document.getElementById('animToggle');
+        const labelsToggle = document.getElementById('labelsToggle');
+
+        // Output Display Elements
+        const voutReadout = document.getElementById('voutReadout');
+        const voutPercent = document.getElementById('voutPercent');
+        const currentReadout = document.getElementById('currentReadout');
+        const totalRReadout = document.getElementById('totalRReadout');
+        const vr1Readout = document.getElementById('vr1Readout');
+        const powerReadout = document.getElementById('powerReadout');
+
+        const calcVin = document.getElementById('calcVin');
+        const calcR1 = document.getElementById('calcR1');
+        const calcR2 = document.getElementById('calcR2');
+        const calcR2Denom = document.getElementById('calcR2Denom');
+
+        const barVr1 = document.getElementById('barVr1');
+        const barVr2 = document.getElementById('barVr2');
+        const vr1BarVal = document.getElementById('vr1BarVal');
+        const vr2BarVal = document.getElementById('vr2BarVal');
+        const midVoltageMark = document.getElementById('midVoltageMark');
+        const maxVoltageMark = document.getElementById('maxVoltageMark');
+
+        // Helper: Calculate Sensor Resistance based on Environmental Value
+        function getEffectiveResistance(type, manualVal, sensorVal) {
+            if (type === 'standard') return manualVal;
+            const factor = sensorVal / 100;
+            if (type === 'ldr' || type === 'ntc') {
+                return Math.round(SENSOR_MAX_R * Math.pow(SENSOR_MIN_R / SENSOR_MAX_R, factor));
+            }
+            return manualVal;
+        }
+
+        // Helper: Format resistance for display (Ω or kΩ)
+        function formatResistance(ohms) {
+            if (ohms >= 1000) {
+                return (ohms / 1000).toFixed(2) + ' kΩ';
+            }
+            return ohms.toFixed(0) + ' Ω';
+        }
+
+        // Helper: Format short resistance for formula substitution
+        function formatShortR(ohms) {
+            if (ohms >= 1000) {
+                return (ohms / 1000).toFixed(2) + 'k';
+            }
+            return ohms.toFixed(0);
+        }
+
+        // Resize Canvas to container
+        function resizeCanvas() {
+            const container = canvas.parentElement;
+            if (!container) return;
+            canvas.width = container.clientWidth;
+            canvas.height = container.clientHeight;
+        }
+
+        window.addEventListener('resize', resizeCanvas);
+
+        // Preset Configurations Handler
+        function applyPreset(preset) {
+            switch(preset) {
+                case 'equal':
+                    state.vin = 12.0;
+                    state.r1Type = 'standard';
+                    state.r1Value = 5000;
+                    state.r2Type = 'standard';
+                    state.r2Value = 5000;
+                    break;
+                case 'high_vout':
+                    state.vin = 12.0;
+                    state.r1Type = 'standard';
+                    state.r1Value = 1000;
+                    state.r2Type = 'standard';
+                    state.r2Value = 9000;
+                    break;
+                case 'low_vout':
+                    state.vin = 12.0;
+                    state.r1Type = 'standard';
+                    state.r1Value = 9000;
+                    state.r2Type = 'standard';
+                    state.r2Value = 1000;
+                    break;
+                case 'ldr_light':
+                    state.vin = 12.0;
+                    state.r1Type = 'standard';
+                    state.r1Value = 5000;
+                    state.r2Type = 'ldr';
+                    state.r2Sensor = 80;
+                    break;
+                case 'thermistor_temp':
+                    state.vin = 12.0;
+                    state.r1Type = 'ntc';
+                    state.r1Sensor = 20;
+                    state.r2Type = 'standard';
+                    state.r2Value = 3000;
+                    break;
+            }
+            syncUIFromState();
+            updateCalculations();
+        }
+
+        // Update Component UI Visibility & Input Controls based on Selection
+        function syncUIFromState() {
+            vinSlider.value = state.vin;
+            if (document.activeElement !== vinInput) {
+                vinInput.value = state.vin.toFixed(1);
+            }
+
+            r1TypeSelect.value = state.r1Type;
+            r1Slider.value = state.r1Value;
+            if (document.activeElement !== r1Input) {
+                r1Input.value = (state.r1Value / 1000).toFixed(2);
+            }
+            r1SensorSlider.value = state.r1Sensor;
+
+            if (state.r1Type === 'standard') {
+                r1StandardBox.classList.remove('hidden');
+                r1SensorBox.classList.add('hidden');
+            } else {
+                r1StandardBox.classList.add('hidden');
+                r1SensorBox.classList.remove('hidden');
+                r1SensorLabel.textContent = state.r1Type === 'ldr' ? 'Light Level' : 'Temperature (°C)';
+                r1SensorVal.textContent = state.r1Sensor + (state.r1Type === 'ldr' ? ' %' : ' °C');
+            }
+
+            r2TypeSelect.value = state.r2Type;
+            r2Slider.value = state.r2Value;
+            if (document.activeElement !== r2Input) {
+                r2Input.value = (state.r2Value / 1000).toFixed(2);
+            }
+            r2SensorSlider.value = state.r2Sensor;
+
+            if (state.r2Type === 'standard') {
+                r2StandardBox.classList.remove('hidden');
+                r2SensorBox.classList.add('hidden');
+            } else {
+                r2StandardBox.classList.add('hidden');
+                r2SensorBox.classList.remove('hidden');
+                r2SensorLabel.textContent = state.r2Type === 'ldr' ? 'Light Level' : 'Temperature (°C)';
+                r2SensorVal.textContent = state.r2Sensor + (state.r2Type === 'ldr' ? ' %' : ' °C');
+            }
+        }
+
+        // Core Calculation Engine & Readout Sync
+        function updateCalculations() {
+            const effR1 = getEffectiveResistance(state.r1Type, state.r1Value, state.r1Sensor);
+            const effR2 = getEffectiveResistance(state.r2Type, state.r2Value, state.r2Sensor);
+            const rTotal = effR1 + effR2;
+
+            // Voltage divider output across R2
+            const vout = state.vin > 0 ? state.vin * (effR2 / rTotal) : 0;
+            const vr1 = state.vin - vout;
+
+            // Circuit current I = V / R (in Amperes)
+            const currentA = rTotal > 0 ? state.vin / rTotal : 0;
+            const currentmA = currentA * 1000;
+
+            // Power P = V * I (in Watts)
+            const powerW = state.vin * currentA;
+            const powermW = powerW * 1000;
+
+            // Display UI updates
+            if (document.activeElement !== r1Input) {
+                r1Input.value = (effR1 / 1000).toFixed(2);
+            }
+            if (document.activeElement !== r2Input) {
+                r2Input.value = (effR2 / 1000).toFixed(2);
+            }
+
+            voutReadout.textContent = vout.toFixed(2) + ' V';
+            const pct = state.vin > 0 ? ((vout / state.vin) * 100).toFixed(1) : '0.0';
+            voutPercent.textContent = `${pct}% of V_in`;
+
+            currentReadout.textContent = currentmA < 1 ? (currentmA * 1000).toFixed(1) + ' µA' : currentmA.toFixed(2) + ' mA';
+            totalRReadout.textContent = `R_total = ${formatResistance(rTotal)}`;
+
+            vr1Readout.textContent = vr1.toFixed(2) + ' V';
+            powerReadout.textContent = powermW < 1 ? (powermW * 1000).toFixed(1) + ' µW' : powermW.toFixed(2) + ' mW';
+
+            // Formula Live Substitution
+            calcVin.textContent = state.vin.toFixed(1);
+            calcR1.textContent = formatShortR(effR1);
+            calcR2.textContent = formatShortR(effR2);
+            calcR2Denom.textContent = formatShortR(effR2);
+
+            // Voltage Bar Visuals
+            const r1Ratio = rTotal > 0 ? (effR1 / rTotal) * 100 : 50;
+            const r2Ratio = 100 - r1Ratio;
+
+            barVr1.style.width = `${r1Ratio}%`;
+            barVr2.style.width = `${r2Ratio}%`;
+
+            vr1BarVal.textContent = `${vr1.toFixed(1)}V`;
+            vr2BarVal.textContent = `${vout.toFixed(1)}V`;
+
+            midVoltageMark.textContent = `${(state.vin / 2).toFixed(1)}V`;
+            maxVoltageMark.textContent = `${state.vin.toFixed(1)}V (100%)`;
+        }
+
+        // Synchronized Event Listeners for Controls
+        vinSlider.addEventListener('input', (e) => {
+            state.vin = parseFloat(e.target.value);
+            vinInput.value = state.vin.toFixed(1);
+            updateCalculations();
+        });
+
+        vinInput.addEventListener('input', (e) => {
+            let val = parseFloat(e.target.value);
+            if (isNaN(val)) val = 0;
+            val = Math.max(0, Math.min(24, val));
+            state.vin = val;
+            vinSlider.value = val;
+            updateCalculations();
+        });
+
+        r1TypeSelect.addEventListener('change', (e) => {
+            state.r1Type = e.target.value;
+            syncUIFromState();
+            updateCalculations();
+        });
+
+        r1Slider.addEventListener('input', (e) => {
+            state.r1Value = parseFloat(e.target.value);
+            r1Input.value = (state.r1Value / 1000).toFixed(2);
+            updateCalculations();
+        });
+
+        r1Input.addEventListener('input', (e) => {
+            let valK = parseFloat(e.target.value);
+            if (isNaN(valK)) valK = 0.1;
+            const valOhms = Math.max(1, valK * 1000);
+            state.r1Value = valOhms;
+            r1Slider.value = valOhms;
+            updateCalculations();
+        });
+
+        r1SensorSlider.addEventListener('input', (e) => {
+            state.r1Sensor = parseFloat(e.target.value);
+            r1SensorVal.textContent = state.r1Sensor + (state.r1Type === 'ldr' ? ' %' : ' °C');
+            updateCalculations();
+        });
+
+        r2TypeSelect.addEventListener('change', (e) => {
+            state.r2Type = e.target.value;
+            syncUIFromState();
+            updateCalculations();
+        });
+
+        r2Slider.addEventListener('input', (e) => {
+            state.r2Value = parseFloat(e.target.value);
+            r2Input.value = (state.r2Value / 1000).toFixed(2);
+            updateCalculations();
+        });
+
+        r2Input.addEventListener('input', (e) => {
+            let valK = parseFloat(e.target.value);
+            if (isNaN(valK)) valK = 0.1;
+            const valOhms = Math.max(1, valK * 1000);
+            state.r2Value = valOhms;
+            r2Slider.value = valOhms;
+            updateCalculations();
+        });
+
+        r2SensorSlider.addEventListener('input', (e) => {
+            state.r2Sensor = parseFloat(e.target.value);
+            r2SensorVal.textContent = state.r2Sensor + (state.r2Type === 'ldr' ? ' %' : ' °C');
+            updateCalculations();
+        });
+
+        presetSelect.addEventListener('change', (e) => {
+            applyPreset(e.target.value);
+        });
+
+        resetBtn.addEventListener('click', () => {
+            presetSelect.value = 'equal';
+            applyPreset('equal');
+        });
+
+        animToggle.addEventListener('change', (e) => {
+            state.showAnimation = e.target.checked;
+        });
+
+        labelsToggle.addEventListener('change', (e) => {
+            state.showLabels = e.target.checked;
+        });
+
+
+        // --- CANVAS RENDER ENGINE ---
+
+        // Helper: Draw CAIE Standard Resistor Symbol (Rectangular Box)
+        function drawResistorSymbol(ctx, x, y, width, height, label, type, sensorVal, effectiveR) {
+            ctx.save();
+
+            // Background shadow glow
+            ctx.shadowColor = 'rgba(56, 189, 248, 0.15)';
+            ctx.shadowBlur = 10;
+
+            // Main Resistor Rectangle Body
+            ctx.fillStyle = '#1e293b';
+            ctx.strokeStyle = '#38bdf8';
+            ctx.lineWidth = 2.5;
+            ctx.beginPath();
+            ctx.roundRect(x - width/2, y - height/2, width, height, 6);
+            ctx.fill();
+            ctx.stroke();
+
+            ctx.shadowBlur = 0; // Reset shadow
+
+            // Symbol Overlays for Special Sensors (CAIE Standards)
+            if (type === 'ldr') {
+                // Light Dependent Resistor: Two incoming parallel arrows pointing at box
+                ctx.strokeStyle = '#f59e0b';
+                ctx.fillStyle = '#f59e0b';
+                ctx.lineWidth = 2;
+
+                const drawArrow = (startX, startY, endX, endY) => {
+                    ctx.beginPath();
+                    ctx.moveTo(startX, startY);
+                    ctx.lineTo(endX, endY);
+                    ctx.stroke();
+
+                    // Arrowhead
+                    const angle = Math.atan2(endY - startY, endX - startX);
+                    ctx.beginPath();
+                    ctx.moveTo(endX, endY);
+                    ctx.lineTo(endX - 6 * Math.cos(angle - Math.PI / 6), endY - 6 * Math.sin(angle - Math.PI / 6));
+                    ctx.lineTo(endX - 6 * Math.cos(angle + Math.PI / 6), endY - 6 * Math.sin(angle + Math.PI / 6));
+                    ctx.closePath();
+                    ctx.fill();
+                };
+
+                drawArrow(x - width/2 - 18, y - 18, x - width/2 - 4, y - 4);
+                drawArrow(x - width/2 - 18, y - 6, x - width/2 - 4, y + 8);
+
+            } else if (type === 'ntc') {
+                // Thermistor: Diagonal line with flat horizontal end at bottom left
+                ctx.strokeStyle = '#ef4444';
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                // Bottom-left horizontal hockey-stick tail
+                ctx.moveTo(x - width/2 - 6, y + height/2 + 6);
+                ctx.lineTo(x - width/2 + 4, y + height/2 + 6);
+                // Diagonal across resistor box
+                ctx.lineTo(x + width/2 + 6, y - height/2 - 6);
+                ctx.stroke();
+            }
+
+            // Labels and Values (Positioned on the LEFT side of the resistor)
+            if (state.showLabels) {
+                const labelX = x - width/2 - 15;
+
+                ctx.fillStyle = '#f8fafc';
+                ctx.font = '600 13px Inter';
+                ctx.textAlign = 'right';
+                ctx.fillText(label, labelX, y - 6);
+
+                ctx.fillStyle = '#94a3b8';
+                ctx.font = '500 11px Fira Code';
+                ctx.fillText(formatResistance(effectiveR), labelX, y + 12);
+
+                if (type !== 'standard') {
+                    ctx.fillStyle = '#f59e0b';
+                    ctx.font = '500 10px Inter';
+                    const modeText = type === 'ldr' ? `Light: ${sensorVal}%` : `Temp: ${sensorVal}°C`;
+                    ctx.fillText(modeText, labelX, y + 28);
+                }
+            }
+
+            ctx.restore();
+        }
+
+        // Helper: Draw DC Power Supply Symbol (+ / -)
+        function drawDCSource(ctx, x, y, width, height) {
+            ctx.save();
+            ctx.strokeStyle = '#f59e0b';
+            ctx.lineWidth = 3;
+
+            // Long Positive Plate (+)
+            ctx.beginPath();
+            ctx.moveTo(x - 14, y - 12);
+            ctx.lineTo(x + 14, y - 12);
+            ctx.stroke();
+
+            // Short Negative Plate (-)
+            ctx.lineWidth = 5;
+            ctx.beginPath();
+            ctx.moveTo(x - 8, y + 12);
+            ctx.lineTo(x + 8, y + 12);
+            ctx.stroke();
+
+            if (state.showLabels) {
+                ctx.fillStyle = '#f59e0b';
+                ctx.font = 'bold 13px Fira Code';
+                ctx.textAlign = 'right';
+                ctx.fillText(`${state.vin.toFixed(1)} V`, x - 25, y + 4);
+
+                ctx.font = 'bold 12px Inter';
+                ctx.fillStyle = '#ef4444';
+                ctx.fillText('+', x - 20, y - 12);
+                ctx.fillStyle = '#38bdf8';
+                ctx.fillText('−', x - 20, y + 16);
+            }
+
+            ctx.restore();
+        }
+
+        // Main Render Loop
+        function render(now) {
+            const dt = (now - lastTime) / 1000;
+            lastTime = now;
+
+            // Clear Screen
+            ctx.fillStyle = '#0f172a';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            const effR1 = getEffectiveResistance(state.r1Type, state.r1Value, state.r1Sensor);
+            const effR2 = getEffectiveResistance(state.r2Type, state.r2Value, state.r2Sensor);
+            const rTotal = effR1 + effR2;
+            const currentA = rTotal > 0 ? state.vin / rTotal : 0;
+            const vout = state.vin > 0 ? state.vin * (effR2 / rTotal) : 0;
+
+            // Circuit Geometry Layout Center Alignment
+            const cWidth = Math.min(canvas.width * 0.45, 280);
+            const cHeight = Math.min(canvas.height * 0.65, 380);
+            const centerX = canvas.width / 2 - 20;
+            const centerY = canvas.height / 2;
+
+            const leftX = centerX - cWidth / 2;
+            const rightX = centerX + cWidth / 2;
+            const topY = centerY - cHeight / 2;
+            const bottomY = centerY + cHeight / 2;
+            const midY = centerY;
+
+            // Draw Wire Schematic Framework
+            ctx.strokeStyle = '#475569';
+            ctx.lineWidth = 3;
+            ctx.lineCap = 'round';
+            ctx.lineJoin = 'round';
+
+            // Top, Right, Bottom Wires & Left Vertical Wire Segments (Leaving gap for DC cell)
+            const cellGapTop = centerY - 12;    // Positive plate Y location
+            const cellGapBottom = centerY + 12; // Negative plate Y location
+
+            ctx.beginPath();
+            // Top wire: left corner to right branch
+            ctx.moveTo(leftX, topY);
+            ctx.lineTo(rightX, topY);
+            // Right branch: down through resistors
+            ctx.lineTo(rightX, bottomY);
+            // Bottom wire: right corner to left corner
+            ctx.lineTo(leftX, bottomY);
+            // Left branch bottom segment: from bottom corner up to negative plate
+            ctx.lineTo(leftX, cellGapBottom);
+            ctx.stroke();
+
+            // Left branch top segment: from top corner down to positive plate
+            ctx.beginPath();
+            ctx.moveTo(leftX, topY);
+            ctx.lineTo(leftX, cellGapTop);
+            ctx.stroke();
+
+            // Voltmeter Branch Wires across R2 (Bottom Resistor)
+            const vmX = rightX + 75;
+            ctx.strokeStyle = '#3b82f6';
+            ctx.lineWidth = 2;
+            ctx.setLineDash([4, 4]); // Dashed line for measuring probe
+
+            ctx.beginPath();
+            ctx.moveTo(rightX, midY);
+            ctx.lineTo(vmX, midY);
+            ctx.lineTo(vmX, bottomY);
+            ctx.lineTo(rightX, bottomY);
+            ctx.stroke();
+            ctx.setLineDash([]); // Reset dash
+
+            // Draw Voltmeter Circle Dial
+            ctx.fillStyle = '#0f172a';
+            ctx.strokeStyle = '#f59e0b';
+            ctx.lineWidth = 2.5;
+            ctx.beginPath();
+            ctx.arc(vmX, (midY + bottomY) / 2, 22, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.stroke();
+
+            // Voltmeter 'V' text & Live Reading
+            ctx.fillStyle = '#f59e0b';
+            ctx.font = 'bold 15px Inter';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText('V', vmX, (midY + bottomY) / 2 - 2);
+
+            if (state.showLabels) {
+                ctx.fillStyle = '#f8fafc';
+                ctx.font = 'bold 12px Fira Code';
+                ctx.fillText(`${vout.toFixed(2)}V`, vmX, (midY + bottomY) / 2 + 32);
+            }
+
+            // Connection Nodes / Terminal Dots
+            const drawNode = (x, y, color = '#38bdf8') => {
+                ctx.fillStyle = color;
+                ctx.beginPath();
+                ctx.arc(x, y, 4.5, 0, Math.PI * 2);
+                ctx.fill();
+            };
+
+            drawNode(rightX, midY, '#f59e0b'); // Junction node for V_out output
+            drawNode(rightX, bottomY, '#38bdf8'); // Ground/reference node
+
+            // Output Node Label
+            if (state.showLabels) {
+                ctx.fillStyle = '#f59e0b';
+                ctx.font = '600 11px Inter';
+                ctx.textAlign = 'left';
+                ctx.fillText('V_out Terminal', rightX + 10, midY - 10);
+            }
+
+            // Draw DC Voltage Supply (Left Vertical Branch)
+            drawDCSource(ctx, leftX, centerY, 30, 40);
+
+            // Draw Resistors (Right Vertical Branch)
+            const rBoxWidth = 32;
+            const rBoxHeight = 70;
+
+            // R1 Top Resistor
+            const r1CenterY = topY + cHeight * 0.25;
+            drawResistorSymbol(ctx, rightX, r1CenterY, rBoxWidth, rBoxHeight, 'R₁', state.r1Type, state.r1Sensor, effR1);
+
+            // R2 Bottom Resistor
+            const r2CenterY = topY + cHeight * 0.75;
+            drawResistorSymbol(ctx, rightX, r2CenterY, rBoxWidth, rBoxHeight, 'R₂', state.r2Type, state.r2Sensor, effR2);
+
+            // Dynamic Electron Charge Flow Animation
+            if (state.showAnimation && currentA > 0) {
+                // Speed scale proportional to current (I = V/R)
+                const speed = Math.min(currentA * 8000, 180); 
+                electronOffset = (electronOffset + speed * dt) % 20;
+
+                ctx.fillStyle = '#38bdf8';
+                ctx.shadowColor = '#38bdf8';
+                ctx.shadowBlur = 6;
+
+                // Helper to render electrons along line segments
+                const drawElectronsOnSegment = (x1, y1, x2, y2, skipBoxY = null, boxH = 0) => {
+                    const dx = x2 - x1;
+                    const dy = y2 - y1;
+                    const len = Math.hypot(dx, dy);
+                    if (len === 0) return;
+                    const count = Math.floor(len / 20);
+
+                    for (let i = 0; i <= count; i++) {
+                        const dist = (i * 20 + electronOffset) % len;
+                        const px = x1 + (dx / len) * dist;
+                        const py = y1 + (dy / len) * dist;
+
+                        // Don't draw electrons inside resistor boxes
+                        if (skipBoxY !== null && Math.abs(py - skipBoxY) < boxH / 2) {
+                            continue;
+                        }
+
+                        ctx.beginPath();
+                        ctx.arc(px, py, 3, 0, Math.PI * 2);
+                        ctx.fill();
+                    }
+                };
+
+                // Render animated charge dots counter-clockwise (electron flow)
+                drawElectronsOnSegment(leftX, centerY + 20, leftX, bottomY);
+                drawElectronsOnSegment(leftX, bottomY, rightX, bottomY);
+                drawElectronsOnSegment(rightX, bottomY, rightX, midY, r2CenterY, rBoxHeight);
+                drawElectronsOnSegment(rightX, midY, rightX, topY, r1CenterY, rBoxHeight);
+                drawElectronsOnSegment(rightX, topY, leftX, topY);
+                drawElectronsOnSegment(leftX, topY, leftX, centerY - 20);
+
+                ctx.shadowBlur = 0; // Reset shadow blur
+            }
+
+            requestAnimationFrame(render);
+        }
+
+        // Window Load & Setup Initialization
+        window.onload = function() {
+            resizeCanvas();
+            syncUIFromState();
+            updateCalculations();
+            requestAnimationFrame(render);
+        };
+
+    </script>
+</body>
+</html>
